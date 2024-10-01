@@ -1,0 +1,14 @@
+#Ignore virtual environments
+
+#Ignore log files and data
+logs/
+data/raw/
+data/processed/
+data/predcitions/
+
+#Ignore Models
+models/
+
+#Python cache files
+__pycache__/
+*.pyc
