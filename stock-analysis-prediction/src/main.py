@@ -3,6 +3,7 @@ import datetime as dt
 import plotly
 import plotly.graph_objects as go
 import plotly.express as px
+from streamlit_option_menu import option_menu
 import streamlit as st
 import yfinance as yf
   
@@ -44,22 +45,28 @@ def analysis(df):
     return df
 
 
-end = dt.datetime.now()
-start = dt.datetime(2019,1,1)
+end = dt.datetime(2023,2,2)
+start = dt.datetime(2021,1,1)
 
 #CREATING DASHBOARD FOR APP LAYOUT
 
 #Set up page layout
 st.set_page_config(layout = "wide")
 st.header("Tracking Dashboard")
-#Tab seperation
-tab1, tab2 = st.tabs(["SP5", "Maritime Stocks & Commodities"])
+
+#Navigation Bar
+selected = option_menu(
+    menu_title = None,
+    options = ["SP5", "Maritime Stocks & Commodities"],
+    icons = ['speedometer2', 'globe'],
+    orientation = 'horizontal'
+)
 
 stocklist = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V', 'PG', 'HD', 'UNH', 'MA']
 
 #TAB 1
 #2A SIDEBAR FOR USER INPUT PARAMETERS
-with tab1: 
+if selected == 'SP5':
     st.sidebar.header('Parameters')
     ticker = st.sidebar.multiselect("Select options", stocklist) #or .selectbox
     start_date = st.sidebar.date_input('Start')
@@ -67,14 +74,12 @@ with tab1:
     indicators = st.sidebar.multiselect('Technical Indicators', ['MA_20', 'MA_50', 'BB_Lower', 'BB_Upper'])
 
     st.subheader("Top 15 S&P 500 Stock Analysis")
-
-    
     #2B MAIN CONTENT AREA ####
     #Load data for the selected stock
     if ticker:
         try:
             with st.spinner("Loading Data"):
-                data = load_data(ticker, start = start_date, end = end_date) #Display for each selected
+                data = load_data(ticker, start = start, end = end) #Display for each selected
             # data = calculate_metrics(data)
                 data = analysis(data)
 
@@ -101,7 +106,7 @@ with tab1:
                         fig.add_trace(go.Scatter(x = data.index, y = data['Lower Band'], name = 'Lower B', line=dict(color = 'lightgray')))
 
                 #Format graph
-                fig.update_layout(title_text = f"{ticker[0]} Time Series Data for with Moving Averages and Bollinger Bands",
+                fig.update_layout(#title_text = f"{ticker[0]} Time Series Data for with Moving Averages and Bollinger Bands",
                                 xaxis_title = 'Time',
                                 yaxis_title = 'Price(USD)')
                 
@@ -147,43 +152,58 @@ maritime_stocks = ['FRO', 'GLNG', 'TK', 'STNG', 'TNP', 'NMM', 'EURN', 'SBLK', 'G
                    'DAC', 'CPLP', 'GOGL', 'CL=F', 'LNG=F', 'HO=F', 'BCO=F', 'BDRY', 'NATGAS=F']
 
 #Page 2: Maritime Stocks & Commodities
-with tab2:
-    st.header("Maritime Stocks & Commodities")
-    st.write("Monitor vessel companies and commodities")
+if selected == 'Maritime Stocks & Commodities':
+    st.subheader("Maritime Stocks & Commodities")
 
-    selected_maritime = st.multiselect("Select Maritime Stocks: ", maritime_stocks)
+    ticker = st.multiselect("Select Maritime Stocks: ", maritime_stocks)
 
-    # #Load data for selected maritime stock data 
-    # if selected_maritime:
-    #     maritime_data = {}
-    #     for stock in selected_maritime:
-    #         maritime_data[stock] = load_data(stock, start, end)
+    st.sidebar.header('Parameters')
+    start_date = st.sidebar.date_input('Start')
+    end_date = st.sidebar.date_input('End')
+    indicators = st.sidebar.multiselect('Technical Indicators', ['MA_20', 'MA_50'])
+    
+    #2B MAIN CONTENT AREA ####
+    #Load data for the selected stock
+    if ticker:
+        try:
+            with st.spinner("Loading Data"):
+                data = load_data(ticker, start = start, end = end) #Display for each selected
+            # data = calculate_metrics(data)
+                data = analysis(data)
 
-    #     for stock, data in maritime_data.items():
-    #         st.subheader(f"Data for {stock}")
-    #         st.write(data.tail(30))
-    #         st.write("Data Loaded Successfully.")
+                last_close, prev_close, change, pct_change, high, low, volume = calculate_metrics(data)
 
-    #         #Plotting the maritime stock data
-    #         fig = go.Figure()
-    #         fig.add_trace(go.Scatter(x = data.index, y = data['Adj Close'], name = 'Price', line=dict(color = 'blue')))
-    #         fig.add_trace(go.Scatter(x = data.index, y = data['MA_20'], name = '20-Day MA', line=dict(color = 'orange')))
-    #         fig.add_trace(go.Scatter(x = data.index, y = data['MA_50'], name = '50-Day MA', line=dict(color = 'green')))
+                st.write("Data Loaded succesfully.")
 
-    #         fig.layout.update(title_text = f"{stock} Time Series Data",
-    #                           xaxis_rangeslider_visible = True)
-    #         st.plotly_chart(fig)
+                st.sidebar.metric(label = f"{ticker} Last Price", value = f"${last_close:.2f} ", delta = f"{change:.2f} ({pct_change:.2f}%)")
 
-    #         # Recommendations for maritime stocks
-    #         with st.expander(f"Recommendations for {stock}"):
-    #             recommendations = []
-    #             if data['RSI'].iloc[-1] < 30:
-    #                 recommendations.append("Oversold: Consider Buying.")
-    #             elif data['RSI'].iloc[-1] > 70:
-    #                 recommendations.append("Overbought: Consider Selling.")
-    #             else:
-    #                 recommendations.append("No immediate action recommended.")
-    #             st.write("\n".join(recommendations))
+                col1, col2 = st.columns(2)
+                col1.metric("Low", f"${low:.2f}")
+                col2.metric("Volume", f"{volume:,}")
+
+                fig = px.line(data, x= data.index, y = data['Adj Close'])
+
+                for indicator in indicators:
+                    if indicator == 'MA_20':
+                        fig.add_trace(go.Scatter(x = data.index, y = data['MA_20'], name = '20-Day MA', line=dict(color = 'orange')))
+                    elif indicator == 'MA_50':
+                        fig.add_trace(go.Scatter(x = data.index, y = data['MA_50'], name = '50-Day MA', line=dict(color = 'green')))
+
+                #Format graph
+                fig.update_layout(#title_text = f"{ticker[0]} Time Series Data for with Moving Averages and Bollinger Bands",
+                                xaxis_title = 'Time',
+                                yaxis_title = 'Price(USD)')
+                
+                st.plotly_chart(fig, use_container_width = True)
+
+                with st.expander("Historical Data"):
+                    st.dataframe(data[['Adj Close', 'Volume']])
+
+        except ValueError as e:
+            st.error(e)
+
+
+  
 
 
 # vessels = ['NIO', 'PYPL', 'META','TSLA', 'UBER', 'MANU', 
